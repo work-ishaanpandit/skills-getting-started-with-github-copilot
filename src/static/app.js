@@ -13,6 +13,13 @@ document.addEventListener("DOMContentLoaded", () => {
       // Clear loading message
       activitiesList.innerHTML = "";
 
+      // Utility to escape HTML in participant names/emails
+      function escapeHtml(str) {
+        return String(str).replace(/[&<>"']/g, function (s) {
+          return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[s];
+        });
+      }
+
       // Populate activities list
       Object.entries(activities).forEach(([name, details]) => {
         const activityCard = document.createElement("div");
@@ -20,12 +27,55 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const spotsLeft = details.max_participants - details.participants.length;
 
+        // Build participants HTML (bulleted list with styled chips)
+        let participantsHtml = '';
+        if (details.participants && details.participants.length > 0) {
+          participantsHtml = '<h5>Participants</h5><ul class="participants-list">';
+          details.participants.forEach((p) => {
+            const escapedEmail = escapeHtml(p);
+            const escapedActivity = escapeHtml(name);
+            participantsHtml += `<li><span class="participant-chip">${escapedEmail}</span><button class="participant-delete" data-activity="${escapedActivity}" data-email="${escapedEmail}" aria-label="Remove participant">×</button></li>`;
+          });
+          participantsHtml += '</ul>';
+        } else {
+          participantsHtml = '<p class="no-participants">No participants yet.</p>';
+        }
+
         activityCard.innerHTML = `
           <h4>${name}</h4>
           <p>${details.description}</p>
           <p><strong>Schedule:</strong> ${details.schedule}</p>
           <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
+          ${participantsHtml}
         `;
+
+        // Attach click handler for delete buttons (delegation per card)
+        activityCard.addEventListener('click', async (e) => {
+          if (e.target && e.target.classList.contains('participant-delete')) {
+            const email = e.target.dataset.email;
+            const activityName = e.target.dataset.activity;
+            if (!confirm(`Remove ${email} from ${activityName}?`)) return;
+
+            try {
+              const resp = await fetch(
+                `/activities/${encodeURIComponent(activityName)}/signup?email=${encodeURIComponent(email)}`,
+                { method: 'DELETE' }
+              );
+              const result = await resp.json();
+              if (resp.ok) {
+                // Refresh activities to reflect change
+                fetchActivities();
+              } else {
+                messageDiv.textContent = result.detail || 'Failed to remove participant';
+                messageDiv.className = 'error';
+                messageDiv.classList.remove('hidden');
+                setTimeout(() => messageDiv.classList.add('hidden'), 5000);
+              }
+            } catch (err) {
+              console.error('Error removing participant:', err);
+            }
+          }
+        });
 
         activitiesList.appendChild(activityCard);
 
@@ -62,6 +112,8 @@ document.addEventListener("DOMContentLoaded", () => {
         messageDiv.textContent = result.message;
         messageDiv.className = "success";
         signupForm.reset();
+        // Refresh the activities UI so new participant appears immediately
+        await fetchActivities();
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
         messageDiv.className = "error";

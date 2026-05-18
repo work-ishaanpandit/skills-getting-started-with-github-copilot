@@ -41,6 +41,46 @@ activities = {
     }
 }
 
+# Additional activities
+activities.update({
+    "Soccer Team": {
+        "description": "Outdoor team sport focusing on skills, fitness, and matches",
+        "schedule": "Tuesdays and Thursdays, 4:00 PM - 6:00 PM",
+        "max_participants": 22,
+        "participants": ["liam@mergington.edu", "noah@mergington.edu"]
+    },
+    "Basketball Club": {
+        "description": "Practice drills, scrimmages, and inter-school competitions",
+        "schedule": "Mondays and Wednesdays, 4:30 PM - 6:00 PM",
+        "max_participants": 15,
+        "participants": ["ava@mergington.edu", "isabella@mergington.edu"]
+    },
+    "Art Club": {
+        "description": "Explore drawing, painting, and mixed media projects",
+        "schedule": "Fridays, 3:30 PM - 5:00 PM",
+        "max_participants": 18,
+        "participants": ["mia@mergington.edu", "charlotte@mergington.edu"]
+    },
+    "Drama Club": {
+        "description": "Acting exercises, stagecraft, and seasonal productions",
+        "schedule": "Wednesdays, 3:30 PM - 5:30 PM",
+        "max_participants": 25,
+        "participants": ["lucas@mergington.edu", "sophia@mergington.edu"]
+    },
+    "Science Olympiad": {
+        "description": "Prepare for science competitions across multiple disciplines",
+        "schedule": "Thursdays, 3:30 PM - 5:00 PM",
+        "max_participants": 20,
+        "participants": ["emma@mergington.edu", "oliver@mergington.edu"]
+    },
+    "Debate Team": {
+        "description": "Public speaking, research, and competitive debating",
+        "schedule": "Tuesdays, 3:30 PM - 5:00 PM",
+        "max_participants": 16,
+        "participants": ["sophia@mergington.edu", "michael@mergington.edu"]
+    }
+})
+
 
 @app.get("/")
 def root():
@@ -61,7 +101,31 @@ def signup_for_activity(activity_name: str, email: str):
 
     # Get the specific activity
     activity = activities[activity_name]
+    normalized_email = email.strip().lower()
+
+    # Validate student is not already signed up
+    if normalized_email in (participant.strip().lower() for participant in activity["participants"]):
+        raise HTTPException(status_code=400, detail="Student already signed up")
 
     # Add student
-    activity["participants"].append(email)
-    return {"message": f"Signed up {email} for {activity_name}"}
+    activity["participants"].append(normalized_email)
+    return {"message": f"Signed up {normalized_email} for {activity_name}"}
+
+
+
+@app.delete("/activities/{activity_name}/signup")
+def unregister_participant(activity_name: str, email: str):
+    """Unregister a student from an activity"""
+    if activity_name not in activities:
+        raise HTTPException(status_code=404, detail="Activity not found")
+
+    activity = activities[activity_name]
+    normalized = email.strip().lower()
+
+    # Find and remove participant (case-insensitive match)
+    for i, p in enumerate(activity.get("participants", [])):
+        if p.strip().lower() == normalized:
+            removed = activity["participants"].pop(i)
+            return {"message": f"Unregistered {removed} from {activity_name}"}
+
+    raise HTTPException(status_code=404, detail="Participant not found")
